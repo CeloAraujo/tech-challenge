@@ -214,19 +214,19 @@ public class BeneficiariosTests(ApiFixture fixture) : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Listar_sem_informar_tamanho_deve_devolver_20_itens_por_pagina()
+    public async Task Listar_sem_informar_tamanho_deve_devolver_10_itens_por_pagina()
     {
         await fixture.SemearBeneficiariosAsync(25);
 
         var corpo = await (await Client.GetAsync("/beneficiarios")).CorpoAsync();
 
-        Assert.Equal(20, corpo.GetProperty("dados").GetArrayLength());
-        Assert.Equal(20, corpo.GetProperty("tamanho").GetInt32());
+        Assert.Equal(10, corpo.GetProperty("dados").GetArrayLength());
+        Assert.Equal(10, corpo.GetProperty("tamanho").GetInt32());
         Assert.Equal(25, corpo.GetProperty("total").GetInt32());
     }
 
     [Fact]
-    public async Task Atualizar_dados_de_beneficiario_inativo_deve_devolver_200()
+    public async Task Atualizar_dados_de_beneficiario_inativo_deve_devolver_409()
     {
         var beneficiario = (await fixture.SemearBeneficiariosAsync(
             1, Planos.Bronze, "INATIVO", 500)).Single();
@@ -239,9 +239,87 @@ public class BeneficiariosTests(ApiFixture fixture) : IAsyncLifetime
             Status = "INATIVO"
         }));
 
-        Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, resposta.StatusCode);
+    }
 
+    [Theory]
+    [InlineData("", "obrigatorio")]
+    [InlineData("5299822472", "deve_conter_11_digitos")]
+    [InlineData("529.982.247", "somente_digitos")]
+    [InlineData("00000000000", "digitos_repetidos")]
+    [InlineData("12345678901", "digitos_verificadores_invalidos")]
+    public async Task Criar_com_cpf_invalido_deve_detalhar_a_regra(string cpf, string regraEsperada)
+    {
+        var resposta = await Client.PostAsync("/beneficiarios", Http.Json(CorpoDeCriacao(cpf)));
+
+        Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
         var corpo = await resposta.CorpoAsync();
-        Assert.Equal("Nome Corrigido do Inativo", corpo.GetProperty("nome_completo").GetString());
+        var detalhe = Assert.Single(corpo.GetProperty("detalhes").EnumerateArray());
+        Assert.Equal("cpf", detalhe.GetProperty("campo").GetString());
+        Assert.Equal(regraEsperada, detalhe.GetProperty("regra").GetString());
+    }
+
+    [Fact]
+    public async Task Criar_deve_ignorar_campos_controlados_pelo_servidor()
+    {
+        var resposta = await Client.PostAsync("/beneficiarios", Http.Json(new
+        {
+            NomeCompleto = "Maria Aparecida da Silva", Cpf = "52998224725",
+            DataNascimento = "1990-05-12", PlanoId = Planos.Bronze,
+            Id = Guid.NewGuid(), Status = "INATIVO", DataCadastro = "2000-01-01T00:00:00Z"
+        }));
+        var corpo = await resposta.CorpoAsync();
+        Assert.Equal(HttpStatusCode.Created, resposta.StatusCode);
+        Assert.Equal("ATIVO", corpo.GetProperty("status").GetString());
+        Assert.True(corpo.GetProperty("data_cadastro").GetDateTime() > DateTime.UtcNow.AddMinutes(-1));
+    }
+
+    [Fact]
+    public async Task Listar_com_paginacao_invalida_deve_devolver_400()
+    {
+        Assert.Equal(HttpStatusCode.BadRequest, (await Client.GetAsync("/beneficiarios?pagina=0")).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await Client.GetAsync("/beneficiarios?tamanho=101")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Atualizar_status_de_beneficiario_inativo_deve_reativar()
+    {
+        var b = (await fixture.SemearBeneficiariosAsync(1, Planos.Bronze, "INATIVO", 700)).Single();
+        var resposta = await Client.PutAsync($"/beneficiarios/{b.Id}", Http.Json(new
+        {
+            b.NomeCompleto, DataNascimento = b.DataNascimento.ToString("yyyy-MM-dd"),
+            b.PlanoId, Status = "ATIVO"
+        }));
+        Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
+        Assert.Equal("ATIVO", (await resposta.CorpoAsync()).GetProperty("status").GetString());
+    }
+
+    [Fact]
+    public async Task Reativar_beneficiario_deve_manter_vinculo_com_plano_excluido()
+    {
+        var b = (await fixture.SemearBeneficiariosAsync(1, Planos.Bronze, "INATIVO", 750)).Single();
+        Assert.Equal(HttpStatusCode.NoContent, (await Client.DeleteAsync($"/planos/{Planos.Bronze}")).StatusCode);
+
+        var resposta = await Client.PutAsync($"/beneficiarios/{b.Id}", Http.Json(new
+        {
+            b.NomeCompleto,
+            DataNascimento = b.DataNascimento.ToString("yyyy-MM-dd"),
+            b.PlanoId,
+            Status = "ATIVO"
+        }));
+
+        Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
+        Assert.Equal("ATIVO", (await resposta.CorpoAsync()).GetProperty("status").GetString());
+    }
+
+    [Fact]
+    public async Task Criacoes_concorrentes_com_mesmo_cpf_devem_criar_apenas_um_registro()
+    {
+        var requisicoes = Enumerable.Range(0, 2)
+            .Select(_ => Client.PostAsync("/beneficiarios", Http.Json(CorpoDeCriacao("39053344705"))))
+            .ToArray();
+        var respostas = await Task.WhenAll(requisicoes);
+        Assert.Single(respostas, r => r.StatusCode == HttpStatusCode.Created);
+        Assert.Single(respostas, r => r.StatusCode == HttpStatusCode.Conflict);
     }
 }

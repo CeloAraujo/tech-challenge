@@ -1,0 +1,12 @@
+{
+  "identificador": "celoaraujo",
+  "nome": "Marcelo Pereira de Araujo",
+  "email": "celoparaujo99@gmail.com",
+  "imagem_api": "celoaraujo/desafio-4tech-api:1.0.0",
+  "imagem_web": "celoaraujo/desafio-4tech-web:1.0.0",
+  "stack": [
+    "dotnet-10",
+    "postgres-17",
+    "angular-20"
+  ]
+}

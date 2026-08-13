@@ -14,7 +14,7 @@ public static class JsonPadrao
         opcoes.DictionaryKeyPolicy = JsonNamingPolicy.SnakeCaseLower;
         opcoes.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
         opcoes.Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping;
-        opcoes.Converters.Add(new JsonStringEnumConverter());
+        opcoes.Converters.Add(new JsonStringEnumConverter(allowIntegerValues: false));
     }
 
     private static JsonSerializerOptions Criar()

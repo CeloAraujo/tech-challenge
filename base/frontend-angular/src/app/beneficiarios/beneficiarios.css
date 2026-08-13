@@ -1,0 +1,164 @@
+.cartao {
+  background: #fff;
+  border: 1px solid #dcdfe4;
+  border-radius: 8px;
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.25rem;
+}
+
+h2 {
+  margin: 0 0 1rem;
+  font-size: 1.1rem;
+}
+
+.cabecalho {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.formulario {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  align-items: end;
+  gap: 1rem;
+}
+
+.filtros {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #eceef1;
+}
+
+label {
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  color: #374151;
+}
+
+input,
+select,
+button {
+  font: inherit;
+  border: 1px solid #c3c8d0;
+  border-radius: 6px;
+  padding: 0.48rem 0.65rem;
+  background: #fff;
+}
+
+input:disabled {
+  background: #eef0f3;
+  color: #59606b;
+}
+
+button {
+  cursor: pointer;
+  background: #f6f7f9;
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+button[type='submit'] {
+  background: #155eef;
+  border-color: #155eef;
+  color: #fff;
+}
+
+.acoes-formulario {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.acoes {
+  display: flex;
+  gap: 0.4rem;
+  white-space: nowrap;
+}
+
+.perigo {
+  color: #b42318;
+  border-color: #f0aaa4;
+}
+
+.tabela {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 0.55rem 0.5rem;
+  border-bottom: 1px solid #eceef1;
+}
+
+th {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  color: #6b7280;
+}
+
+.aviso {
+  color: #6b7280;
+}
+
+.erro {
+  color: #b42318;
+}
+
+.erro-campo {
+  color: #b42318;
+  font-size: 0.78rem;
+  line-height: 1.25;
+}
+
+.espaco-erro {
+  display: block;
+  min-height: 2.1em;
+  line-height: 1.05em;
+}
+
+input.ng-invalid.ng-touched,
+input.ng-invalid.ng-dirty,
+select.ng-invalid.ng-touched,
+select.ng-invalid.ng-dirty {
+  border-color: #b42318;
+}
+
+.sucesso {
+  color: #067647;
+}
+
+.paginacao {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1rem;
+  color: #4b5563;
+}
+
+.paginacao div {
+  display: flex;
+  gap: 0.5rem;
+}
+
+@media (max-width: 600px) {
+  .paginacao {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

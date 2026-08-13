@@ -1,0 +1,228 @@
+<section class="cartao">
+  <h2>{{ editandoId() ? 'Editar beneficiário' : 'Novo beneficiário' }}</h2>
+  <form [formGroup]="formulario" (ngSubmit)="salvar()" class="formulario">
+    <label
+      >Nome completo
+      <input formControlName="nome_completo" autocomplete="name" placeholder="Ex: Marcelo Araujo" />
+      <span class="espaco-erro">
+        @if (mostrarErro(formulario.controls.nome_completo)) {
+          @if (
+            formulario.controls.nome_completo.hasError('required') ||
+            formulario.controls.nome_completo.getError('api') === 'obrigatorio'
+          ) {
+            <span class="erro-campo">Informe o nome completo.</span>
+          } @else if (
+            formulario.controls.nome_completo.hasError('minlength') ||
+            formulario.controls.nome_completo.getError('api') === 'tamanho_minimo'
+          ) {
+            <span class="erro-campo">O nome deve ter pelo menos 3 caracteres.</span>
+          } @else if (
+            formulario.controls.nome_completo.hasError('maxlength') ||
+            formulario.controls.nome_completo.getError('api') === 'tamanho_maximo' ||
+            formulario.controls.nome_completo.getError('api') === 'tamanho_invalido'
+          ) {
+            <span class="erro-campo">O nome deve ter no máximo 120 caracteres.</span>
+          } @else {
+            <span class="erro-campo">Nome completo inválido.</span>
+          }
+        }
+      </span>
+    </label>
+    <label
+      >CPF
+      <input
+        formControlName="cpf"
+        [value]="formatarCpf(formulario.controls.cpf.value)"
+        inputmode="numeric"
+        maxlength="14"
+        autocomplete="off"
+        placeholder="000.000.000-00"
+        (input)="atualizarCpf($event)"
+      />
+      <span class="espaco-erro">
+        @if (mostrarErro(formulario.controls.cpf)) {
+          @if (
+            formulario.controls.cpf.hasError('required') ||
+            formulario.controls.cpf.getError('api') === 'obrigatorio'
+          ) {
+            <span class="erro-campo">Informe o CPF.</span>
+          } @else if (
+            formulario.controls.cpf.hasError('cpfTamanho') ||
+            formulario.controls.cpf.getError('api') === 'deve_conter_11_digitos'
+          ) {
+            <span class="erro-campo">O CPF deve conter exatamente 11 dígitos.</span>
+          } @else if (
+            formulario.controls.cpf.hasError('cpfSomenteDigitos') ||
+            formulario.controls.cpf.getError('api') === 'somente_digitos'
+          ) {
+            <span class="erro-campo">O CPF deve conter somente números, sem pontos ou traços.</span>
+          } @else if (
+            formulario.controls.cpf.hasError('cpfRepetido') ||
+            formulario.controls.cpf.getError('api') === 'digitos_repetidos'
+          ) {
+            <span class="erro-campo">O CPF não pode ter todos os dígitos iguais.</span>
+          } @else if (
+            formulario.controls.cpf.hasError('cpfDigitosVerificadores') ||
+            formulario.controls.cpf.getError('api') === 'digitos_verificadores_invalidos'
+          ) {
+            <span class="erro-campo">Os dígitos verificadores do CPF são inválidos.</span>
+          } @else if (formulario.controls.cpf.getError('api') === 'duplicado') {
+            <span class="erro-campo">Este CPF já está cadastrado.</span>
+          } @else {
+            <span class="erro-campo">CPF inválido.</span>
+          }
+        }
+      </span>
+    </label>
+    <label
+      >Data de nascimento
+      <input type="date" formControlName="data_nascimento" />
+      <span class="espaco-erro">
+        @if (mostrarErro(formulario.controls.data_nascimento)) {
+          @if (
+            formulario.controls.data_nascimento.hasError('required') ||
+            formulario.controls.data_nascimento.getError('api') === 'obrigatorio'
+          ) {
+            <span class="erro-campo">Informe a data de nascimento.</span>
+          } @else {
+            <span class="erro-campo"
+              >A data de nascimento deve ser uma data válida anterior a hoje.</span
+            >
+          }
+        }
+      </span>
+    </label>
+    <label
+      >Plano
+      <select formControlName="plano_id">
+        <option value="">Selecione</option>
+        @for (plano of planos(); track plano.id) {
+          <option [value]="plano.id">{{ plano.nome }}</option>
+        }
+      </select>
+      <span class="espaco-erro">
+        @if (mostrarErro(formulario.controls.plano_id)) {
+          @if (
+            formulario.controls.plano_id.hasError('required') ||
+            formulario.controls.plano_id.getError('api') === 'obrigatorio'
+          ) {
+            <span class="erro-campo">Selecione um plano.</span>
+          } @else {
+            <span class="erro-campo">O plano selecionado não existe ou não está disponível.</span>
+          }
+        }
+      </span>
+    </label>
+    @if (editandoId()) {
+      <label
+        >Situação<select formControlName="status">
+          <option value="ATIVO">Ativo</option>
+          <option value="INATIVO">Inativo</option></select
+        ><span class="espaco-erro"></span
+      ></label>
+    }
+    <div class="acoes-formulario">
+      <button type="submit" [disabled]="salvando()">
+        {{ salvando() ? 'Salvando...' : 'Salvar' }}
+      </button>
+      @if (editandoId()) {
+        <button type="button" class="secundario" (click)="cancelarEdicao()">Cancelar</button>
+      }
+    </div>
+  </form>
+  @if (mensagemFormulario()) {
+    <p class="aviso sucesso" role="status">{{ mensagemFormulario() }}</p>
+  }
+  @if (erroFormulario()) {
+    <p class="aviso erro" role="alert">{{ erroFormulario() }}</p>
+  }
+</section>
+
+<section class="cartao">
+  <header class="cabecalho"><h2>Beneficiários</h2></header>
+  <form [formGroup]="filtros" (ngSubmit)="aplicarFiltros()" class="filtros">
+    <label
+      >Situação<select formControlName="status">
+        <option value="">Todas</option>
+        <option value="ATIVO">Ativos</option>
+        <option value="INATIVO">Inativos</option>
+      </select></label
+    >
+    <label
+      >Plano<select formControlName="plano_id">
+        <option value="">Todos</option>
+        @for (plano of planos(); track plano.id) {
+          <option [value]="plano.id">{{ plano.nome }}</option>
+        }
+      </select></label
+    >
+    <button type="submit" [disabled]="carregando()">Aplicar filtros</button>
+  </form>
+  @if (mensagemLista()) {
+    <p class="aviso sucesso" role="status">{{ mensagemLista() }}</p>
+  }
+  @if (erroLista()) {
+    <p class="aviso erro" role="alert">{{ erroLista() }}</p>
+  }
+  @if (carregando()) {
+    <p class="aviso">Carregando beneficiários...</p>
+  } @else if (beneficiarios().length === 0) {
+    <p class="aviso">Nenhum beneficiário encontrado.</p>
+  } @else {
+    <div class="tabela">
+      <table>
+        <thead>
+          <tr>
+            <th>Nome</th>
+            <th>CPF</th>
+            <th>Nascimento</th>
+            <th>Situação</th>
+            <th>Plano</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (b of beneficiarios(); track b.id) {
+            <tr>
+              <td>{{ b.nome_completo }}</td>
+              <td>{{ b.cpf }}</td>
+              <td>{{ b.data_nascimento }}</td>
+              <td>{{ b.status }}</td>
+              <td>{{ nomePlano(b.plano_id) }}</td>
+              <td class="acoes">
+                <button type="button" (click)="editar(b)" [disabled]="editandoId() === b.id">
+                  {{ editandoId() === b.id ? 'Editando' : 'Editar' }}</button
+                ><button
+                  type="button"
+                  class="perigo"
+                  (click)="excluir(b)"
+                  [disabled]="excluindoId() === b.id"
+                >
+                  {{ excluindoId() === b.id ? 'Excluindo...' : 'Excluir' }}
+                </button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+  <footer class="paginacao">
+    <span>{{ total() }} registro(s) — página {{ pagina() }} de {{ totalPaginas() }}</span>
+    <div>
+      <button
+        type="button"
+        (click)="mudarPagina(pagina() - 1)"
+        [disabled]="carregando() || pagina() === 1"
+      >
+        Anterior</button
+      ><button
+        type="button"
+        (click)="mudarPagina(pagina() + 1)"
+        [disabled]="carregando() || pagina() >= totalPaginas()"
+      >
+        Próxima
+      </button>
+    </div>
+  </footer>
+</section>
