@@ -34,12 +34,12 @@ public class BeneficiarioServico(AppDbContext db)
 
     public async Task<Beneficiario> CriarAsync(BeneficiarioCriacaoRequest request, CancellationToken ct)
     {
-        await GarantirPlanoAsync(request.PlanoId, ct);
         var beneficiario = new Beneficiario(
             request.NomeCompleto,
             request.Cpf,
             request.DataNascimento,
             request.PlanoId);
+        await GarantirPlanoAsync(request.PlanoId, ct);
         if (await db.Beneficiarios.IgnoreQueryFilters().AnyAsync(b => b.Cpf == beneficiario.Cpf, ct)) throw CpfDuplicado();
         db.Beneficiarios.Add(beneficiario);
         await SalvarAsync(ct);
@@ -49,8 +49,12 @@ public class BeneficiarioServico(AppDbContext db)
     public async Task<Beneficiario> AtualizarAsync(Guid id, BeneficiarioAtualizacaoRequest request, CancellationToken ct)
     {
         var beneficiario = await ObterAsync(id, ct);
-        if (!Enum.IsDefined(request.Status))
+        if (!request.Status.HasValue)
+            throw new ValidacaoException("Dados do beneficiário inválidos", [new("status", "obrigatorio")]);
+        if (!Enum.IsDefined(request.Status.Value))
             throw new ValidacaoException("Dados do beneficiário inválidos", [new("status", "invalido")]);
+
+        Beneficiario.ValidarDadosCadastrais(request.NomeCompleto, request.DataNascimento, request.PlanoId);
 
         var mantemDadosDeInativo = beneficiario.Status == StatusBeneficiario.INATIVO
             && string.Equals(request.NomeCompleto?.Trim(), beneficiario.NomeCompleto, StringComparison.Ordinal)
@@ -65,7 +69,7 @@ public class BeneficiarioServico(AppDbContext db)
             request.NomeCompleto,
             request.DataNascimento,
             request.PlanoId,
-            request.Status);
+            request.Status.Value);
         await db.SaveChangesAsync(ct);
         return beneficiario;
     }

@@ -54,6 +54,22 @@ public class BeneficiariosTests(ApiFixture fixture) : IAsyncLifetime
         Assert.Equal(HttpStatusCode.UnprocessableEntity, resposta.StatusCode);
     }
 
+    [Fact]
+    public async Task Criar_deve_validar_corpo_antes_de_consultar_plano()
+    {
+        var resposta = await Client.PostAsync("/beneficiarios", Http.Json(new
+        {
+            NomeCompleto = "",
+            Cpf = "39053344705",
+            DataNascimento = "1990-05-12",
+            PlanoId = Planos.Inexistente
+        }));
+
+        Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
+        Assert.Contains((await resposta.CorpoAsync()).GetProperty("detalhes").EnumerateArray(), detalhe =>
+            detalhe.GetProperty("campo").GetString() == "nome_completo");
+    }
+
     // ------------------------------------------------------------------ consulta por id
 
     [Fact]
@@ -131,6 +147,63 @@ public class BeneficiariosTests(ApiFixture fixture) : IAsyncLifetime
         Assert.Equal(HttpStatusCode.UnprocessableEntity, resposta.StatusCode);
     }
 
+    [Fact]
+    public async Task Atualizar_deve_validar_corpo_antes_de_consultar_plano()
+    {
+        var beneficiario = (await fixture.SemearBeneficiariosAsync(1)).Single();
+
+        var resposta = await Client.PutAsync($"/beneficiarios/{beneficiario.Id}", Http.Json(new
+        {
+            NomeCompleto = "",
+            DataNascimento = "1990-05-12",
+            PlanoId = Planos.Inexistente,
+            Status = "ATIVO"
+        }));
+
+        Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
+        Assert.Contains((await resposta.CorpoAsync()).GetProperty("detalhes").EnumerateArray(), detalhe =>
+            detalhe.GetProperty("campo").GetString() == "nome_completo");
+    }
+
+    [Fact]
+    public async Task Atualizar_sem_status_deve_devolver_400_com_regra_obrigatorio()
+    {
+        var beneficiario = (await fixture.SemearBeneficiariosAsync(1)).Single();
+
+        var resposta = await Client.PutAsync($"/beneficiarios/{beneficiario.Id}", Http.Json(new
+        {
+            NomeCompleto = "Maria Aparecida da Silva",
+            DataNascimento = "1990-05-12",
+            PlanoId = Planos.Bronze
+        }));
+
+        Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
+        var detalhe = Assert.Single((await resposta.CorpoAsync()).GetProperty("detalhes").EnumerateArray());
+        Assert.Equal("status", detalhe.GetProperty("campo").GetString());
+        Assert.Equal("obrigatorio", detalhe.GetProperty("regra").GetString());
+    }
+
+    [Fact]
+    public async Task Plano_excluido_deve_ser_recusado_na_criacao_e_na_atualizacao()
+    {
+        var beneficiario = (await fixture.SemearBeneficiariosAsync(1, Planos.Prata)).Single();
+        Assert.Equal(HttpStatusCode.NoContent, (await Client.DeleteAsync($"/planos/{Planos.Bronze}")).StatusCode);
+
+        var criacao = await Client.PostAsync(
+            "/beneficiarios",
+            Http.Json(CorpoDeCriacao("39053344705", Planos.Bronze)));
+        var atualizacao = await Client.PutAsync($"/beneficiarios/{beneficiario.Id}", Http.Json(new
+        {
+            beneficiario.NomeCompleto,
+            DataNascimento = beneficiario.DataNascimento.ToString("yyyy-MM-dd"),
+            PlanoId = Planos.Bronze,
+            Status = "ATIVO"
+        }));
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, criacao.StatusCode);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, atualizacao.StatusCode);
+    }
+
     // ------------------------------------------------------------------ exclusão
 
     [Fact]
@@ -194,6 +267,19 @@ public class BeneficiariosTests(ApiFixture fixture) : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Listar_pagina_alem_do_total_deve_devolver_lista_vazia()
+    {
+        await fixture.SemearBeneficiariosAsync(3);
+
+        var resposta = await Client.GetAsync("/beneficiarios?pagina=2&tamanho=10");
+        var corpo = await resposta.CorpoAsync();
+
+        Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
+        Assert.Equal(0, corpo.GetProperty("dados").GetArrayLength());
+        Assert.Equal(3, corpo.GetProperty("total").GetInt32());
+    }
+
+    [Fact]
     public async Task Listar_deve_combinar_os_filtros_de_status_e_plano()
     {
         await fixture.SemearBeneficiariosAsync(4, Planos.Bronze, "ATIVO", 100);
@@ -211,6 +297,23 @@ public class BeneficiariosTests(ApiFixture fixture) : IAsyncLifetime
                 Assert.Equal("ATIVO", beneficiario.GetProperty("status").GetString());
                 Assert.Equal(Planos.Bronze, beneficiario.GetProperty("plano_id").GetGuid());
             });
+    }
+
+    [Fact]
+    public async Task Listar_deve_aplicar_filtros_de_status_e_plano_isoladamente()
+    {
+        await fixture.SemearBeneficiariosAsync(2, Planos.Bronze, "ATIVO", 400);
+        await fixture.SemearBeneficiariosAsync(3, Planos.Prata, "INATIVO", 500);
+
+        var porStatus = await (await Client.GetAsync("/beneficiarios?tamanho=50&status=INATIVO")).CorpoAsync();
+        var porPlano = await (await Client.GetAsync($"/beneficiarios?tamanho=50&plano_id={Planos.Bronze}")).CorpoAsync();
+
+        Assert.Equal(3, porStatus.GetProperty("total").GetInt32());
+        Assert.All(porStatus.GetProperty("dados").EnumerateArray(), item =>
+            Assert.Equal("INATIVO", item.GetProperty("status").GetString()));
+        Assert.Equal(2, porPlano.GetProperty("total").GetInt32());
+        Assert.All(porPlano.GetProperty("dados").EnumerateArray(), item =>
+            Assert.Equal(Planos.Bronze, item.GetProperty("plano_id").GetGuid()));
     }
 
     [Fact]
@@ -264,9 +367,13 @@ public class BeneficiariosTests(ApiFixture fixture) : IAsyncLifetime
     {
         var resposta = await Client.PostAsync("/beneficiarios", Http.Json(new
         {
-            NomeCompleto = "Maria Aparecida da Silva", Cpf = "52998224725",
-            DataNascimento = "1990-05-12", PlanoId = Planos.Bronze,
-            Id = Guid.NewGuid(), Status = "INATIVO", DataCadastro = "2000-01-01T00:00:00Z"
+            NomeCompleto = "Maria Aparecida da Silva",
+            Cpf = "52998224725",
+            DataNascimento = "1990-05-12",
+            PlanoId = Planos.Bronze,
+            Id = Guid.NewGuid(),
+            Status = "INATIVO",
+            DataCadastro = "2000-01-01T00:00:00Z"
         }));
         var corpo = await resposta.CorpoAsync();
         Assert.Equal(HttpStatusCode.Created, resposta.StatusCode);
@@ -281,14 +388,24 @@ public class BeneficiariosTests(ApiFixture fixture) : IAsyncLifetime
         Assert.Equal(HttpStatusCode.BadRequest, (await Client.GetAsync("/beneficiarios?tamanho=101")).StatusCode);
     }
 
+    [Theory]
+    [InlineData("/beneficiarios?pagina=abc")]
+    [InlineData("/beneficiarios?tamanho=abc")]
+    public async Task Listar_com_paginacao_nao_numerica_deve_devolver_400(string url)
+    {
+        Assert.Equal(HttpStatusCode.BadRequest, (await Client.GetAsync(url)).StatusCode);
+    }
+
     [Fact]
     public async Task Atualizar_status_de_beneficiario_inativo_deve_reativar()
     {
         var b = (await fixture.SemearBeneficiariosAsync(1, Planos.Bronze, "INATIVO", 700)).Single();
         var resposta = await Client.PutAsync($"/beneficiarios/{b.Id}", Http.Json(new
         {
-            b.NomeCompleto, DataNascimento = b.DataNascimento.ToString("yyyy-MM-dd"),
-            b.PlanoId, Status = "ATIVO"
+            b.NomeCompleto,
+            DataNascimento = b.DataNascimento.ToString("yyyy-MM-dd"),
+            b.PlanoId,
+            Status = "ATIVO"
         }));
         Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
         Assert.Equal("ATIVO", (await resposta.CorpoAsync()).GetProperty("status").GetString());

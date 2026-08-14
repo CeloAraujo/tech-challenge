@@ -12,4 +12,4 @@ public sealed record BeneficiarioAtualizacaoRequest(
     string? NomeCompleto,
     DateOnly DataNascimento,
     Guid PlanoId,
-    StatusBeneficiario Status);
+    StatusBeneficiario? Status);

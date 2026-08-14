@@ -36,9 +36,20 @@ public class Beneficiario
         Status = status;
     }
 
+    public static void ValidarDadosCadastrais(string? nomeCompleto, DateOnly dataNascimento, Guid planoId) =>
+        ValidarDados(nomeCompleto, dataNascimento, planoId);
+
     public void Excluir() => ExcluidoEm = DateTime.UtcNow;
 
     private void DefinirDados(string? nomeCompleto, DateOnly dataNascimento, Guid planoId)
+    {
+        ValidarDados(nomeCompleto, dataNascimento, planoId);
+        NomeCompleto = nomeCompleto!.Trim();
+        DataNascimento = dataNascimento;
+        PlanoId = planoId;
+    }
+
+    private static void ValidarDados(string? nomeCompleto, DateOnly dataNascimento, Guid planoId)
     {
         nomeCompleto = nomeCompleto?.Trim() ?? string.Empty;
         var detalhes = new List<DetalheErro>();
@@ -49,9 +60,6 @@ public class Beneficiario
         else if (dataNascimento >= DateOnly.FromDateTime(DateTime.UtcNow)) detalhes.Add(new("data_nascimento", "deve_ser_data_passada"));
         if (planoId == Guid.Empty) detalhes.Add(new("plano_id", "obrigatorio"));
         if (detalhes.Count > 0) throw new ValidacaoException("Dados do beneficiário inválidos", detalhes);
-        NomeCompleto = nomeCompleto;
-        DataNascimento = dataNascimento;
-        PlanoId = planoId;
     }
 
     private static string ValidarCpf(string? cpf)
