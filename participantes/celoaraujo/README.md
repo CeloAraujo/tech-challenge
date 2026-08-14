@@ -8,6 +8,8 @@ No banco, acrescentei `ExcluidoEm`, filtro global e índice único de CPF. O ín
 
 No frontend, criei modelos tipados, `BeneficiarioServico` com `HttpClient` e um componente standalone para listar, filtrar, paginar, cadastrar, editar e excluir. O formulário valida CPF e nascimento antes do envio, bloqueia CPF na edição, exibe erros estruturados da API e trata carregamento e lista vazia. A exclusão somente atualiza a tela depois da resposta de sucesso.
 
+A navegação agora permite escolher 10, 20, 50 ou 100 registros por página. A troca do tamanho retorna à primeira página e faz uma nova consulta ao servidor, evitando manter uma página que deixou de existir com o novo tamanho.
+
 Os contratos de criação e atualização foram agrupados em `Aplicacao/Contratos` e agora são enviados inteiros do controller para `BeneficiarioServico`, mantendo coesa a entrada de cada caso de uso sem acoplar a aplicação à pasta HTTP. As validações de CPF distinguem campo obrigatório, quantidade de dígitos, caracteres não numéricos, sequência repetida e dígitos verificadores. O frontend apresenta cada erro abaixo do campo correspondente; erros sem campo permanecem no alerta geral do formulário.
 
 O campo CPF aplica máscara `000.000.000-00` somente na apresentação. O evento de entrada remove qualquer caractere não numérico, limita a 11 dígitos e mantém o `FormControl` com o valor cru; portanto POST envia exatamente os 11 dígitos exigidos pela API.
@@ -23,6 +25,12 @@ O campo CPF aplica máscara `000.000.000-00` somente na apresentação. O evento
 - `beneficiarios.spec.ts`: três testes Jasmine para CPF válido, CPFs inválidos e datas inexistentes/futuras.
 - `planos-lista.spec.ts`: reproduz o clique em “Recarregar”, confirma a segunda chamada HTTP e garante que o carregamento termina com a tabela atualizada.
 - `Reativar_beneficiario_deve_manter_vinculo_com_plano_excluido`: cobre a reativação sem trocar o vínculo histórico depois da exclusão lógica do plano.
+- `Atualizar_sem_status_deve_devolver_400_com_regra_obrigatorio`: garante que omitir `status` no PUT não use `ATIVO` implicitamente como valor padrão do enum.
+- Os testes de precedência confirmam que dados cadastrais inválidos retornam `400` antes de consultar um plano inexistente (`422`).
+- `Plano_excluido_deve_ser_recusado_na_criacao_e_na_atualizacao`: confirma `422` no POST e no PUT, preservando separadamente a reativação com vínculo histórico.
+- A listagem ganhou cobertura para página além do total, paginação não numérica e filtros de situação e plano aplicados isoladamente.
+- `HealthControllerTests`: confirma `503` com banco indisponível usando um `AppDbContext` isolado, sem interromper o PostgreSQL compartilhado pela suíte.
+- Os testes Angular confirmam que mudar o tamanho volta à página 1, consulta o servidor e mantém o seletor bloqueado durante carregamento.
 
 ### Testes modificados
 
@@ -30,7 +38,7 @@ O campo CPF aplica máscara `000.000.000-00` somente na apresentação. O evento
 - Alterei `Atualizar_dados_de_beneficiario_inativo_deve_devolver_200` para esperar `409 Conflict`. A seção 2.3 da `SPEC.md` define o beneficiário inativo como congelado.
 - Nenhum teste foi removido ou enfraquecido; os demais testes públicos foram preservados.
 
-O build Angular e os cinco testes frontend passaram. A suíte backend foi executada com o SDK .NET 10 e passou com 35 de 35 testes. O `docker compose up -d --build` também passou; validei health/banco, cinco planos, criação e listagem de beneficiário, Swagger e web. As restaurações reportaram vulnerabilidades em dependências transitivas (`SSH.NET` no teste e pacotes NPM); não apliquei atualização automática sem análise de compatibilidade.
+O build Angular e os sete testes frontend passaram. A suíte backend foi executada com o SDK .NET 10 e passou com 44 de 44 testes. O `docker compose up -d --build` também passou; validei health/banco, cinco planos, criação e listagem de beneficiário, Swagger e web. As restaurações reportaram vulnerabilidades em dependências transitivas (`SSH.NET` no teste e pacotes NPM); não apliquei atualização automática sem análise de compatibilidade.
 
 ## 2. Decisões
 
@@ -56,7 +64,13 @@ Beneficiário já vinculado a plano posteriormente excluído pode ser reativado 
 
 Para um beneficiário inativo, interpretei “a mudança de status continua permitida” como reativação mantendo os dados cadastrais atuais. Se a mesma requisição tentar reativar e alterar nome, nascimento ou plano, retorna `409`. Essa interpretação evita contornar o congelamento juntando alterações à reativação.
 
+No PUT, `status` é obrigatório. O DTO usa enum nullable para distinguir `ATIVO` do campo ausente: sem essa distinção, o model binding atribuiria zero, que corresponde a `ATIVO`, e uma omissão poderia reativar o beneficiário sem intenção. Campo ausente ou `null` retorna `400` com detalhe `status/obrigatorio`; texto de enum desconhecido continua retornando `400` como inválido.
+
+A especificação não define qual erro prevalece quando a mesma requisição contém dados cadastrais inválidos e um plano inexistente. Escolhi validar primeiro os dados em memória (`400`), depois a referência ao plano (`422`) e, por fim, duplicidade ou congelamento (`409`). Isso evita consulta ao banco para um corpo já inválido e torna a resposta mais previsível. Na atualização, a validação foi separada da mutação para que uma falha não altere a entidade rastreada antes de verificar o plano.
+
 A seção 9 não exige campo de consulta por ID na interface, embora a API exponha `GET /beneficiarios/{id}`. Mantive esse endpoint no backend para cumprir o contrato, mas não expus uma busca por UUID que o usuário não tem como conhecer. A tela oferece somente os filtros exigidos: situação e plano. Também separei mensagens de formulário das mensagens da listagem, desabilitei o botão da linha atualmente em edição e removi a recarga manual redundante; CRUD, filtros e paginação já atualizam a lista pelo servidor.
+
+A seção 9.3 pede navegação usando `pagina` e `tamanho`. Inicialmente a tela sempre enviava o tamanho padrão 10; acrescentei opções 10, 20, 50 e 100 para expor ao usuário a capacidade que a API já oferecia. Ao trocar a opção, a página volta para 1 e o filtro atual é preservado.
 
 Os dois testes públicos contraditórios foram modificados porque `SPEC.md` é o contrato funcional: tamanho padrão 10 e alteração cadastral de inativo com `409`. As mudanças estão enumeradas na seção anterior para tornar a decisão auditável.
 
