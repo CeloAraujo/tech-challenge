@@ -210,6 +210,20 @@
   <footer class="paginacao">
     <span>{{ total() }} registro(s) — página {{ pagina() }} de {{ totalPaginas() }}</span>
     <div>
+      <label class="tamanho-pagina"
+        >Registros por página
+        <select
+          aria-label="Registros por página"
+          [value]="tamanho()"
+          [disabled]="carregando()"
+          (change)="mudarTamanho($event)"
+        >
+          <option value="10">10</option>
+          <option value="20">20</option>
+          <option value="50">50</option>
+          <option value="100">100</option>
+        </select>
+      </label>
       <button
         type="button"
         (click)="mudarPagina(pagina() - 1)"

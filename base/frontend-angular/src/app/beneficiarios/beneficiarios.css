@@ -153,7 +153,13 @@ select.ng-invalid.ng-dirty {
 
 .paginacao div {
   display: flex;
+  align-items: end;
   gap: 0.5rem;
+}
+
+.tamanho-pagina {
+  grid-template-columns: auto auto;
+  align-items: center;
 }
 
 @media (max-width: 600px) {

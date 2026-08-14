@@ -1,5 +1,9 @@
+import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { FormControl } from '@angular/forms';
-import { cpfValido, dataPassada, formatarCpf } from './beneficiarios';
+import { of, Subject } from 'rxjs';
+import { PlanoServico } from '../planos/plano-servico';
+import { BeneficiarioServico } from './beneficiario-servico';
+import { Beneficiarios, cpfValido, dataPassada, formatarCpf } from './beneficiarios';
 
 describe('validadores de beneficiário', () => {
   it('aceita um CPF com dígitos verificadores válidos', () =>
@@ -30,5 +34,53 @@ describe('validadores de beneficiário', () => {
   it('formata CPF somente para exibicao, preservando onze digitos como valor de dominio', () => {
     expect(formatarCpf('52998224725')).toBe('529.982.247-25');
     expect(formatarCpf('529a982.247-25texto')).toBe('529.982.247-25');
+  });
+});
+
+describe('paginação de beneficiários', () => {
+  let fixture: ComponentFixture<Beneficiarios>;
+  let listar: jasmine.Spy;
+
+  beforeEach(async () => {
+    listar = jasmine.createSpy().and.callFake((filtros: { pagina: number; tamanho: number }) =>
+      of({ dados: [], pagina: filtros.pagina, tamanho: filtros.tamanho, total: 30 }),
+    );
+    await TestBed.configureTestingModule({
+      imports: [Beneficiarios],
+      providers: [
+        { provide: BeneficiarioServico, useValue: { listar } },
+        { provide: PlanoServico, useValue: { listar: () => of([]) } },
+      ],
+    }).compileComponents();
+    fixture = TestBed.createComponent(Beneficiarios);
+    fixture.detectChanges();
+  });
+
+  it('reinicia na primeira página e consulta o servidor ao mudar o tamanho', () => {
+    (fixture.componentInstance as unknown as { pagina: { set(valor: number): void } }).pagina.set(3);
+    fixture.detectChanges();
+
+    const seletor = fixture.nativeElement.querySelector(
+      'select[aria-label="Registros por página"]',
+    ) as HTMLSelectElement;
+    seletor.value = '20';
+    seletor.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+
+    expect(listar).toHaveBeenCalledWith(
+      jasmine.objectContaining({ pagina: 1, tamanho: 20 }),
+    );
+    expect(fixture.nativeElement.textContent).toContain('página 1 de 2');
+  });
+
+  it('bloqueia a escolha de tamanho enquanto a lista está carregando', () => {
+    listar.and.returnValue(new Subject());
+    (fixture.componentInstance as unknown as { carregar(): void }).carregar();
+    fixture.detectChanges();
+
+    const seletor = fixture.nativeElement.querySelector(
+      'select[aria-label="Registros por página"]',
+    ) as HTMLSelectElement;
+    expect(seletor.disabled).toBeTrue();
   });
 });

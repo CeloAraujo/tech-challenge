@@ -115,6 +115,15 @@ export class Beneficiarios {
     this.carregar();
   }
 
+  protected mudarTamanho(evento: Event): void {
+    if (this.carregando()) return;
+    const tamanho = Number((evento.target as HTMLSelectElement).value);
+    if (tamanho === this.tamanho()) return;
+    this.tamanho.set(tamanho);
+    this.pagina.set(1);
+    this.carregar();
+  }
+
   protected carregar(): void {
     this.carregando.set(true);
     this.erroLista.set(null);
