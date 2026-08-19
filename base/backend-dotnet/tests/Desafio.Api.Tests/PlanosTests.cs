@@ -92,6 +92,27 @@ public class PlanosTests(ApiFixture fixture) : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Criacoes_concorrentes_com_mesmos_dados_devem_persistir_apenas_um_plano()
+    {
+        var requisicoes = Enumerable.Range(0, 10)
+            .Select(_ => Client.PostAsync("/planos", Http.Json(new
+            {
+                Nome = "Concorrente",
+                CodigoRegistroAns = "290001"
+            })));
+
+        var respostas = await Task.WhenAll(requisicoes);
+
+        Assert.Single(respostas, resposta => resposta.StatusCode == HttpStatusCode.Created);
+        Assert.Equal(9, respostas.Count(resposta => resposta.StatusCode == HttpStatusCode.Conflict));
+
+        var listagem = await (await Client.GetAsync("/planos")).CorpoAsync();
+        Assert.Single(
+            listagem.EnumerateArray(),
+            plano => plano.GetProperty("codigo_registro_ans").GetString() == "290001");
+    }
+
+    [Fact]
     public async Task Criar_com_dados_invalidos_deve_devolver_400_detalhando_os_campos()
     {
         var resposta = await Client.PostAsync("/planos", Http.Json(new
@@ -110,6 +131,26 @@ public class PlanosTests(ApiFixture fixture) : IAsyncLifetime
 
         Assert.Contains("nome", campos);
         Assert.Contains("codigo_registro_ans", campos);
+    }
+
+    [Fact]
+    public async Task Criar_sem_dados_obrigatorios_deve_identificar_nome_e_codigo()
+    {
+        var resposta = await Client.PostAsync("/planos", Http.Json(new
+        {
+            Nome = "   ",
+            CodigoRegistroAns = ""
+        }));
+
+        Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
+
+        var detalhes = (await resposta.CorpoAsync()).GetProperty("detalhes").EnumerateArray().ToList();
+        Assert.Contains(detalhes, detalhe =>
+            detalhe.GetProperty("campo").GetString() == "nome" &&
+            detalhe.GetProperty("regra").GetString() == "obrigatorio");
+        Assert.Contains(detalhes, detalhe =>
+            detalhe.GetProperty("campo").GetString() == "codigo_registro_ans" &&
+            detalhe.GetProperty("regra").GetString() == "obrigatorio");
     }
 
     [Fact]

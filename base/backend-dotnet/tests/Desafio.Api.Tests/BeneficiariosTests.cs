@@ -184,6 +184,42 @@ public class BeneficiariosTests(ApiFixture fixture) : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Atualizar_com_status_fora_do_dominio_deve_devolver_400()
+    {
+        var beneficiario = (await fixture.SemearBeneficiariosAsync(1)).Single();
+
+        var resposta = await Client.PutAsync($"/beneficiarios/{beneficiario.Id}", Http.Json(new
+        {
+            NomeCompleto = beneficiario.NomeCompleto,
+            DataNascimento = beneficiario.DataNascimento.ToString("yyyy-MM-dd"),
+            PlanoId = Planos.Bronze,
+            Status = 99
+        }));
+
+        Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
+        Assert.Contains((await resposta.CorpoAsync()).GetProperty("detalhes").EnumerateArray(), detalhe =>
+            detalhe.GetProperty("campo").GetString() == "status" &&
+            detalhe.GetProperty("regra").GetString() == "invalido");
+    }
+
+    [Fact]
+    public async Task Criar_sem_plano_deve_devolver_400_antes_de_acessar_o_banco()
+    {
+        var resposta = await Client.PostAsync("/beneficiarios", Http.Json(new
+        {
+            NomeCompleto = "Maria Aparecida da Silva",
+            Cpf = "39053344705",
+            DataNascimento = "1990-05-12",
+            PlanoId = Guid.Empty
+        }));
+
+        Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
+        Assert.Contains((await resposta.CorpoAsync()).GetProperty("detalhes").EnumerateArray(), detalhe =>
+            detalhe.GetProperty("campo").GetString() == "plano_id" &&
+            detalhe.GetProperty("regra").GetString() == "obrigatorio");
+    }
+
+    [Fact]
     public async Task Plano_excluido_deve_ser_recusado_na_criacao_e_na_atualizacao()
     {
         var beneficiario = (await fixture.SemearBeneficiariosAsync(1, Planos.Prata)).Single();
