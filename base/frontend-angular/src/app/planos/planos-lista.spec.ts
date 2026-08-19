@@ -45,4 +45,17 @@ describe('PlanosLista', () => {
     expect(botao.disabled).toBeFalse();
     expect(fixture.nativeElement.querySelector('tbody').textContent).toContain('Plano Essencial');
   });
+
+  it('apresenta o erro da API e libera nova tentativa quando a consulta falha', () => {
+    http.expectOne('http://api.test/planos').flush(
+      { mensagem: 'Falha ao consultar planos', detalhes: [] },
+      { status: 500, statusText: 'Erro interno' },
+    );
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('.erro').textContent).toContain(
+      'Falha ao consultar planos',
+    );
+    expect((fixture.nativeElement.querySelector('button') as HTMLButtonElement).disabled).toBeFalse();
+  });
 });
