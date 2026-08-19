@@ -32,13 +32,26 @@ O campo CPF aplica máscara `000.000.000-00` somente na apresentação. O evento
 - `HealthControllerTests`: confirma `503` com banco indisponível usando um `AppDbContext` isolado, sem interromper o PostgreSQL compartilhado pela suíte.
 - Os testes Angular confirmam que mudar o tamanho volta à página 1, consulta o servidor e mantém o seletor bloqueado durante carregamento.
 
+### Ampliação de cobertura com testes de comportamento
+
+- `TratamentoDeErroMiddlewareTests` verifica preservação de erros de domínio, resposta `500` sanitizada sem informação interna, continuidade do pipeline sem erro e proteção quando a resposta HTTP já foi iniciada.
+- A concorrência de Planos dispara dez criações simultâneas com o mesmo código e confirma uma única persistência: uma resposta `201` e nove conflitos `409`.
+- Os testes adicionais de domínio cobrem plano obrigatório, `status` inválido e campos obrigatórios de Plano, verificando códigos e detalhes do contrato.
+- `beneficiario-servico.spec.ts` valida URLs, parâmetros opcionais, POST, PUT sem CPF e DELETE por meio de `HttpTestingController`.
+- `beneficiarios-fluxos.spec.ts` cobre cadastro, edição, cancelamento, filtros, paginação, máscara, bloqueios, loading, lista vazia, exclusão cancelada, sucesso/falha e mensagens por campo ou gerais.
+- `api.spec.ts` cobre falha de conexão, fallback por status e tradução do contrato estruturado de erro.
+- Os testes de Planos passaram a cobrir o serviço HTTP e os estados de sucesso, falha e nova tentativa da listagem.
+- O cálculo do CPF possui caso explícito para a regra oficial em que resto dez deve produzir dígito zero; controles vazios/nulos permanecem sob responsabilidade do `required`.
+
+A cobertura final do frontend ficou em 100% das linhas e funções, 99,45% dos statements e 98,3% dos branches. No backend, o código principal ficou com 97,84% das linhas cobertas; o relatório bruto é menor porque também contabiliza migrations, arquivos gerados, `Program.cs` e a factory de design-time do EF Core. Não foram criados testes artificiais para executar getters triviais ou métodos `Down` apenas para elevar a métrica.
+
 ### Testes modificados
 
 - Renomeei e alterei `Listar_sem_informar_tamanho_deve_devolver_20_itens_por_pagina` para esperar 10. O teste original contradizia a seção 3 da `SPEC.md`, que define tamanho padrão 10.
 - Alterei `Atualizar_dados_de_beneficiario_inativo_deve_devolver_200` para esperar `409 Conflict`. A seção 2.3 da `SPEC.md` define o beneficiário inativo como congelado.
 - Nenhum teste foi removido ou enfraquecido; os demais testes públicos foram preservados.
 
-O build Angular e os sete testes frontend passaram. A suíte backend foi executada com o SDK .NET 10 e passou com 44 de 44 testes. O `docker compose up -d --build` também passou; validei health/banco, cinco planos, criação e listagem de beneficiário, Swagger e web. As restaurações reportaram vulnerabilidades em dependências transitivas (`SSH.NET` no teste e pacotes NPM); não apliquei atualização automática sem análise de compatibilidade.
+O build Angular e os 34 testes frontend passaram. A suíte backend foi executada com o SDK .NET 10 e passou com 52 de 52 testes. O `docker compose up -d --build` também passou; validei health/banco, cinco planos, criação e listagem de beneficiário, Swagger e web. As restaurações reportaram vulnerabilidades em dependências transitivas (`SSH.NET` no teste e pacotes NPM); não apliquei atualização automática sem análise de compatibilidade.
 
 ## 2. Decisões
 
